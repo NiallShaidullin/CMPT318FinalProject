@@ -5,6 +5,9 @@ library(lubridate)
 library(zoo)
 library(imputeTS)
 library("depmixS4")
+library(ggbiplot)
+library(factoextra)
+library(plotly)
 set.seed(1)
 
 ### Functions ###
@@ -47,6 +50,8 @@ data$Global_active_power[1] <- median(data$Global_active_power, na.rm = TRUE)
 # check that there are no na values left
 colSums(is.na(data))
 
+columns = c("Global_active_power","Global_reactive_power","Voltage","Global_intensity","Sub_metering_1", "Sub_metering_2", "Sub_metering_3" )
+
 # Create a new dataframe to store z-scores
 z_scores <- data.frame(matrix(nrow = nrow(data), ncol = length(columns)))
 colnames(z_scores) <- columns
@@ -79,5 +84,89 @@ test_data <- data_cleaned %>% filter(Date >= as.Date("2009-01-01"))
 train_scaled_data <- train_data 
 num_cols <- names(train_data)[sapply(train_data, is.numeric)]
 train_scaled_data[num_cols] <- scale(train_data[num_cols])
+
+
+
+
+
+
+
+
+###### Part 2 ######
+
+
+# Drop the time, date and timedate variables, not needed for PCA
+# will be added back for training the HMM
+pca_df <- train_scaled_data[, -c(1, 2, ncol(train_scaled_data))]
+
+# Perform PCA
+pca <- princomp(pca_df, scale = FALSE)
+
+# View contributions to variance
+summary_pca <- summary(pca)
+
+
+######### THIS MAY BE REMOVED ########## 
+# Variance explained by each principal component (standard deviations squared)
+variance_explained <- pca$sdev^2
+# Proportion of variance explained by each component
+proportion_variance <- variance_explained / sum(variance_explained)
+# Extract the proportion of variance explained by each of the first 3 components
+var_exp <- proportion_variance[1:3]  # Proportion of variance explained
+# Extract the loadings for the first 3 components
+loadings <- pca$loadings[,1:3]
+loadings
+# Calculate the squared loadings for each feature and component
+squared_loadings <- loadings^2
+squared_loadings
+# Repeat the variance explained for each feature (to match the number of rows in squared_loadings)
+var_exp_repeated <- matrix(var_exp, nrow = nrow(squared_loadings), ncol = length(var_exp), byrow = TRUE)
+var_exp_repeated
+# Multiply squared loadings by the proportion of variance for each component
+importance <- rowSums(squared_loadings * var_exp_repeated)
+# Print the overall importance for each feature
+importance
+#########################################
+
+
+# view the load of each feature for first 3 components
+pca$loadings[, 1:3]
+
+# scree plot
+fviz_eig(pca, addlabels = TRUE)
+
+
+
+fviz_cos2(pca, choice = "var", axes = 1:2)
+
+# coloured biplot of component 1 and 2
+fviz_pca_var(pca, col.var = "cos2",
+             gradient.cols = c("black","red", "orange", "green","purple","blue"),
+             repel = TRUE)
+
+# another method to find biplot 
+ggbiplot(pca,
+         labels = pca$st ,
+         circle = TRUE,
+         varname.size = 4,
+         varname.color = "red") 
+
+# biplot between component 2 and 3
+fviz_pca_var(pca, axes = c(2, 3), col.var = "black")
+fviz_cos2(pca, choice = "var", axes = 2:3)
+fviz_pca_var(pca, axes = c(2, 3), col.var = "cos2",
+             gradient.cols = c("black", "red", "orange", "green", "purple", "blue"),
+             repel = TRUE)
+
+# loadings <- pca$rotation ## probably wont need, will clean up
+
+
+
+
+### P3 ###
+### USE THIS DF TO TRAIN THE HMM #### 
+# The values in it may change later, but will still use the same name so
+# code can be written for part 3
+p3_data <- train_scaled_data[, -c(4, 5, 7, 9)]
 
 
