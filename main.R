@@ -112,9 +112,9 @@ variance_explained <- pca$sdev^2
 # Proportion of variance explained by each component
 proportion_variance <- variance_explained / sum(variance_explained)
 # Extract the proportion of variance explained by each of the first 3 components
-var_exp <- proportion_variance[1:3]  # Proportion of variance explained
+var_exp <- proportion_variance[1:2]  # Proportion of variance explained
 # Extract the loadings for the first 3 components
-loadings <- pca$loadings[,1:3]
+loadings <- pca$loadings[,1:2]
 loadings
 # Calculate the squared loadings for each feature and component
 squared_loadings <- loadings^2
@@ -167,6 +167,7 @@ fviz_pca_var(pca, axes = c(2, 3), col.var = "cos2",
 ### USE THIS DF TO TRAIN THE HMM #### 
 # The values in it may change later, but will still use the same name so
 # code can be written for part 3
-p3_data <- train_scaled_data[, -c(4, 5, 7, 9)]
+p3_data <- train_scaled_data
+## use Global_intensity, Global_active_power, Sub_metering_3
 
 
