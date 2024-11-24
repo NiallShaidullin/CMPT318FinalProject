@@ -27,38 +27,65 @@ rollMeanGlobInt <- function(df, window) {
 }
 
 # Function to train and evaluate HMM models
-train_evaluate_hmm <- function(train_data, test_data, states_range) {
+train_evaluate_hmm <- function(train_data, test_data, states_range, train_n_times, test_n_times) {
   results <- list() # Store log-likelihoods and BIC for comparison
   
   for (num_states in states_range) {
-    # Define the HMM model
-    model <- depmix(list(Global_intensity ~ 1, Global_active_power ~ 1, Sub_metering_3 ~ 1),
-                    data = train_data,
-                    nstates = num_states,
-                    family = list(gaussian(), gaussian(), gaussian()))
+    # Step 1: Define the HMM model for training data
+    model <- depmix(
+      response = list(Global_intensity ~ 1, Global_active_power ~ 1),
+      data = train_data,
+      nstates = num_states,
+      family = list(gaussian(), gaussian()),
+      ntimes = train_n_times,
+      emcontrol = list(maxit = 500)
+    )
     
-    # Fit the model
+    # Step 2: Fit the model on the training data
     fitted_model <- fit(model)
+
+    # Step 3: Extract log-likelihood for training data and normalize
+    log_likelihood_train <- logLik(fitted_model)
+    normalized_train_log_likelihood <- log_likelihood_train / 107  # Normalize by total observations
     
-    # Extract log-likelihood and BIC
-    log_likelihood <- logLik(fitted_model)
+    # Step 4: Extract BIC for the training model
     bic <- BIC(fitted_model)
+    print(bic)
+    # Step 5: Create a similar model for the test data using the same structure
+    # This is done using the same specification as the trained model, but with test data
+    new_mod <- depmix(
+      response = list(Global_intensity ~ 1, Global_active_power ~ 1),
+      data = test_data,
+      nstates = num_states,
+      family = list(gaussian(), gaussian()),
+      ntimes = test_n_times,
+      emcontrol = list(maxit = 500)
+      )
     
-    # Evaluate on test data
-    forward_backward <- forwardbackward(fitted_model, newdata = test_data)
-    test_log_likelihood <- sum(forward_backward$logLik)
+    # Step 6: Set the parameters of the new model to be the same as the trained model
+    model2 <- setpars(new_mod, getpars(fitted_model))  # Set trained parameters into the test model
     
-    # Store results
+    # Step 7: Evaluate the log-likelihood of the test data on the trained model
+    log_likelihood_test <- logLik(model2)  # Calculate log-likelihood of the test data
+    # Check if it's a valid number (not NaN or Inf)
+    print(log_likelihood_test)
+    
+    # Step 8: Normalize the test log-likelihood
+    normalized_test_log_likelihood <- log_likelihood_test / 48  # Normalize by total observations
+    
+    # Step 9: Store the results for this model configuration
     results[[as.character(num_states)]] <- list(
       num_states = num_states,
-      train_log_likelihood = as.numeric(log_likelihood),
-      test_log_likelihood = test_log_likelihood,
+      train_log_likelihood = as.numeric(log_likelihood_train),
+      test_log_likelihood = as.numeric(log_likelihood_test),
       bic = bic
     )
   }
   
   return(results)
 }
+
+
 
 timezone <- "UTC"
 window_size <- 10 # moving time window
@@ -119,7 +146,9 @@ train_scaled_data <- train_data
 num_cols <- names(train_data)[sapply(train_data, is.numeric)]
 train_scaled_data[num_cols] <- scale(train_data[num_cols])
 
-
+test_scaled_data <- test_data
+test_num_cols <- names(test_data)[sapply(test_data, is.numeric)]
+test_scaled_data[test_num_cols] <- scale(test_data[test_num_cols])
 
 
 
@@ -207,38 +236,65 @@ p3_data <- train_scaled_data
 # Specify response variables for HMM training (based on PCA results)
 response_vars <- c("Global_intensity", "Global_active_power", "Sub_metering_3")
 
-# Creates a new Datetime column
-p3_data$Datetime <- as.POSIXlt(paste(p3_data$Date, p3_data$Time), format = "%d/%m/%Y %H:%M:%S", tz = timezone)
-
-# Converting Date column to actual Date data
-p3_data$Date <- as.Date(p3_data$Date, format = "%d/%m/%Y")
-
 
 # columns for the weekday and week number
 p3_data$Weekday <- wday(p3_data$Date, label = TRUE, abbr = TRUE)
 p3_data$Week <- isoweek(p3_data$Date) # ISO week number
 
+
 # Filter between 2 AM and 6 AM
-mon_data <- filter(p3_data,
+mon_train_data <- filter(p3_data,
                            Weekday == "Mon" & 
                            format(Datetime, "%H:%M:%S") >= "02:00:00" & 
                            format(Datetime, "%H:%M:%S") <= "5:59:00")
 
+
+# columns for the weekday and week number
+test_scaled_data$Weekday <- wday(test_scaled_data$Date, label = TRUE, abbr = TRUE)
+test_scaled_data$Week <- isoweek(test_scaled_data$Date) # ISO week number
+
+
+# Filter between 2 AM and 6 AM
+mon_test_data <- filter(test_scaled_data,
+                         Weekday == "Mon" & 
+                           format(Datetime, "%H:%M:%S") >= "02:00:00" & 
+                           format(Datetime, "%H:%M:%S") <= "5:59:00")
+
+
+
+weekly_counts <- group_by(mon_train_data, Date)
+weekly_counts <- summarise(weekly_counts, Data_Points = n())
+
+# Vector to be used for ntimes in the model
+count_vector <- weekly_counts$Data_Points
+
+count_vector
+
+test_weekly_counts <- group_by(mon_test_data, Week)
+test_weekly_counts <- summarise(test_weekly_counts, Data_Points = n())
+
+# Vector to be used for ntimes in the model
+test_count_vector <- test_weekly_counts$Data_Points
+
+test_count_vector
 # Subset training data with selected response variables
-train_hmm_data <- p3_data[, response_vars]
+train_hmm_data <- mon_train_data[, response_vars]
 
 # Prepare test data with the same response variables
-test_hmm_data <- test_data[, response_vars]
+test_hmm_data <- mon_test_data[, response_vars]
 
 # Ensure no missing or invalid values in train and test datasets 
 train_hmm_data <- train_hmm_data[complete.cases(train_hmm_data), ]
 test_hmm_data <- test_hmm_data[complete.cases(test_hmm_data), ]
 
 # Define the range of states to evaluate
-states_range <- 4:12
+range <- 4:10
 
+states_range <- range[seq(1, length(range), by = 2)]
+
+anyNA(mon_test_data)
 # Train and evaluate HMM models
-hmm_results <- train_evaluate_hmm(train_hmm_data, test_hmm_data, states_range)
+hmm_results <- train_evaluate_hmm(mon_train_data, mon_test_data, states_range, count_vector, test_count_vector)
 
 # Extract results into a data frame for comparison
 hmm_results_df <- do.call(rbind, lapply(hmm_results, function(x) {
