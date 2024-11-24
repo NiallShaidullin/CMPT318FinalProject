@@ -26,6 +26,40 @@ rollMeanGlobInt <- function(df, window) {
   rollmean(df[['Global_intensity']], window)
 }
 
+# Function to train and evaluate HMM models
+train_evaluate_hmm <- function(train_data, test_data, states_range) {
+  results <- list() # Store log-likelihoods and BIC for comparison
+  
+  for (num_states in states_range) {
+    # Define the HMM model
+    model <- depmix(list(Global_intensity ~ 1, Global_active_power ~ 1, Sub_metering_3 ~ 1),
+                    data = train_data,
+                    nstates = num_states,
+                    family = list(gaussian(), gaussian(), gaussian()))
+    
+    # Fit the model
+    fitted_model <- fit(model)
+    
+    # Extract log-likelihood and BIC
+    log_likelihood <- logLik(fitted_model)
+    bic <- BIC(fitted_model)
+    
+    # Evaluate on test data
+    forward_backward <- forwardbackward(fitted_model, newdata = test_data)
+    test_log_likelihood <- sum(forward_backward$logLik)
+    
+    # Store results
+    results[[as.character(num_states)]] <- list(
+      num_states = num_states,
+      train_log_likelihood = as.numeric(log_likelihood),
+      test_log_likelihood = test_log_likelihood,
+      bic = bic
+    )
+  }
+  
+  return(results)
+}
+
 timezone <- "UTC"
 window_size <- 10 # moving time window
 
@@ -34,7 +68,7 @@ data <- read.table("TermProjectData.txt", header = TRUE, sep = ",")
 
 # see how many na values for each feature
 colSums(is.na(data))
-  
+
 # go through all the data, if it is numeric then interpolate the na values (From Assignment1)
 data <- as.data.frame(lapply(data, function(col) {
   if (is.numeric(col)) {
@@ -170,4 +204,46 @@ fviz_pca_var(pca, axes = c(2, 3), col.var = "cos2",
 p3_data <- train_scaled_data
 ## use Global_intensity, Global_active_power, Sub_metering_3
 
+# Specify response variables for HMM training (based on PCA results)
+response_vars <- c("Global_intensity", "Global_active_power", "Sub_metering_3")
+
+# Subset training data with selected response variables
+train_hmm_data <- p3_data[, response_vars]
+
+# Prepare test data with the same response variables
+test_hmm_data <- test_data[, response_vars]
+
+# Define the range of states to evaluate (4 to 20, for example)
+states_range <- 4:20
+
+# Train and evaluate HMM models
+hmm_results <- train_evaluate_hmm(train_hmm_data, test_hmm_data, states_range)
+
+# Extract results into a data frame for comparison
+hmm_results_df <- do.call(rbind, lapply(hmm_results, function(x) {
+  data.frame(
+    num_states = x$num_states,
+    train_log_likelihood = x$train_log_likelihood,
+    test_log_likelihood = x$test_log_likelihood,
+    bic = x$bic
+  )
+}))
+
+# Visualize results: Log-Likelihood and BIC
+ggplot(hmm_results_df, aes(x = num_states)) +
+  geom_line(aes(y = train_log_likelihood, color = "Train Log-Likelihood")) +
+  geom_line(aes(y = test_log_likelihood, color = "Test Log-Likelihood")) +
+  geom_line(aes(y = bic, color = "BIC")) +
+  labs(title = "HMM Evaluation Results", x = "Number of States", y = "Value") +
+  scale_color_manual("", values = c("Train Log-Likelihood" = "blue", "Test Log-Likelihood" = "green", "BIC" = "red")) +
+  theme_minimal()
+
+# Select the best model based on BIC and log-likelihood
+best_model <- hmm_results[[which.min(sapply(hmm_results, function(x) x$bic))]]
+
+# Print best model information
+print(paste("Best Model: ", best_model$num_states, "states"))
+print(paste("Train Log-Likelihood: ", best_model$train_log_likelihood))
+print(paste("Test Log-Likelihood: ", best_model$test_log_likelihood))
+print(paste("BIC: ", best_model$bic))
 
