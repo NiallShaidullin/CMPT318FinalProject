@@ -207,14 +207,35 @@ p3_data <- train_scaled_data
 # Specify response variables for HMM training (based on PCA results)
 response_vars <- c("Global_intensity", "Global_active_power", "Sub_metering_3")
 
+# Creates a new Datetime column
+p3_data$Datetime <- as.POSIXlt(paste(p3_data$Date, p3_data$Time), format = "%d/%m/%Y %H:%M:%S", tz = timezone)
+
+# Converting Date column to actual Date data
+p3_data$Date <- as.Date(p3_data$Date, format = "%d/%m/%Y")
+
+
+# columns for the weekday and week number
+p3_data$Weekday <- wday(p3_data$Date, label = TRUE, abbr = TRUE)
+p3_data$Week <- isoweek(p3_data$Date) # ISO week number
+
+# Filter between 2 AM and 6 AM
+mon_data <- filter(p3_data,
+                           Weekday == "Mon" & 
+                           format(Datetime, "%H:%M:%S") >= "02:00:00" & 
+                           format(Datetime, "%H:%M:%S") <= "5:59:00")
+
 # Subset training data with selected response variables
 train_hmm_data <- p3_data[, response_vars]
 
 # Prepare test data with the same response variables
 test_hmm_data <- test_data[, response_vars]
 
-# Define the range of states to evaluate (4 to 20, for example)
-states_range <- 4:20
+# Ensure no missing or invalid values in train and test datasets 
+train_hmm_data <- train_hmm_data[complete.cases(train_hmm_data), ]
+test_hmm_data <- test_hmm_data[complete.cases(test_hmm_data), ]
+
+# Define the range of states to evaluate
+states_range <- 4:12
 
 # Train and evaluate HMM models
 hmm_results <- train_evaluate_hmm(train_hmm_data, test_hmm_data, states_range)
