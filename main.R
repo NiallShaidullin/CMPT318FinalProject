@@ -292,7 +292,6 @@ range <- 4:10
 
 states_range <- range[seq(1, length(range), by = 2)]
 
-anyNA(mon_test_data)
 # Train and evaluate HMM models
 hmm_results <- train_evaluate_hmm(mon_train_data, mon_test_data, states_range, count_vector, test_count_vector)
 
