@@ -334,59 +334,60 @@ print(paste("BIC: ", best_model$bic))
 mon_test_data <- mon_test_data[order(mon_test_data$Date), ]
 week_indices <- cut(seq(1, nrow(mon_test_data)), breaks = 10, labels = FALSE)
 
-# Calculate log-likelihoods for test subsets
-log_likelihoods <- list()
-
-for (i in 1:10) {
+# Calculate log-likelihoods for test subsets directly using fitted HMM
+log_likelihoods <- sapply(1:10, function(i) {
   subset_data <- mon_test_data[week_indices == i, response_vars]
   subset_data <- subset_data[complete.cases(subset_data), ]
   
   if (nrow(subset_data) > 0) {
-    forward_backward <- forwardbackward(best_fitted_model, newdata = subset_data)
-    log_likelihood <- sum(forward_backward$logLik)
-    log_likelihoods[[i]] <- log_likelihood
+    # Fit the model to the subset and calculate log-likelihood
+    temp_model <- depmix(
+      response = list(Global_intensity ~ 1, Global_active_power ~ 1),
+      data = subset_data,
+      nstates = best_model$num_states,
+      family = list(gaussian(), gaussian()),
+      ntimes = nrow(subset_data)
+    )
+    fitted_subset_model <- setpars(temp_model, getpars(best_fitted_model))
+    return(logLik(fitted_subset_model))
   } else {
-    log_likelihoods[[i]] <- NA
+    return(NA)
   }
-}
+})
 
-# Convert log-likelihoods list to numeric vector, excluding NAs
-log_likelihoods <- unlist(log_likelihoods)
-log_likelihoods <- log_likelihoods[!is.na(log_likelihoods)]
+# Remove NA values from the log-likelihoods
+log_likelihoods <- na.omit(log_likelihoods)
 
-# Calculate train log-likelihood for the entire training dataset
-train_forward_backward <- forwardbackward(best_fitted_model, newdata = train_hmm_data)
-train_log_likelihood <- sum(train_forward_backward$logLik)
-normalized_train_log_likelihood <- train_log_likelihood / nrow(train_hmm_data)
+# Calculate the mean log-likelihood for the entire training dataset
+mean_train_log_likelihood <- as.numeric(logLik(best_fitted_model)) / nrow(train_hmm_data)
 
 # Calculate deviations of test subset log-likelihoods from the train log-likelihood
-deviations <- abs(log_likelihoods - normalized_train_log_likelihood)
+deviations <- abs(log_likelihoods - mean_train_log_likelihood)
 max_deviation <- max(deviations)  # Maximum deviation
 
 # Define the anomaly detection threshold
-threshold <- normalized_train_log_likelihood - max_deviation
+lower_threshold <- mean_train_log_likelihood - max_deviation
+upper_threshold <- mean_train_log_likelihood + max_deviation
 
 # Print Results
-cat("Normalized Train Log-Likelihood:", normalized_train_log_likelihood, "\n")
+cat("Mean Train Log-Likelihood:", mean_train_log_likelihood, "\n")
 cat("Maximum Deviation:", max_deviation, "\n")
-cat("Anomaly Detection Threshold:", threshold, "\n")
+cat("Lower Threshold:", lower_threshold, "\n")
+cat("Upper Threshold:", upper_threshold, "\n")
 
 # Visualize Log-Likelihoods and Threshold
 log_likelihood_df <- data.frame(
-  Week = 1:10,
+  Week = 1:length(log_likelihoods),
   LogLikelihood = log_likelihoods
 )
 
 ggplot(log_likelihood_df, aes(x = Week, y = LogLikelihood)) +
   geom_line(color = "blue") +
-  geom_hline(yintercept = threshold, color = "red", linetype = "dashed") +
+  geom_hline(yintercept = lower_threshold, color = "red", linetype = "dashed", label = "Lower Threshold") +
+  geom_hline(yintercept = upper_threshold, color = "red", linetype = "dashed", label = "Upper Threshold") +
   labs(
     title = "Log-Likelihoods of Test Data Subsets with Maximum Deviation Threshold",
     x = "Week Subset",
     y = "Log-Likelihood"
   ) +
   theme_minimal()
-
-
-
-`
