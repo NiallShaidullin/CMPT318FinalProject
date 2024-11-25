@@ -161,23 +161,23 @@ test_scaled_data[test_num_cols] <- scale(test_data[test_num_cols])
 # Drop the time, date and timedate variables, not needed for PCA
 # will be added back for training the HMM
 pca_df <- train_scaled_data[, -c(1, 2, ncol(train_scaled_data))]
-
 # Perform PCA
 pca <- princomp(pca_df, scale = FALSE)
-
 # View contributions to variance
 summary_pca <- summary(pca)
+print(summary_pca)
 
-
-######### THIS MAY BE REMOVED ########## 
+######### Observation purposes ########## 
 # Variance explained by each principal component (standard deviations squared)
 variance_explained <- pca$sdev^2
+
+print(variance_explained)
 # Proportion of variance explained by each component
 proportion_variance <- variance_explained / sum(variance_explained)
 # Extract the proportion of variance explained by each of the first 3 components
-var_exp <- proportion_variance[1:2]  # Proportion of variance explained
+var_exp <- proportion_variance[1:3]  # Proportion of variance explained
 # Extract the loadings for the first 3 components
-loadings <- pca$loadings[,1:2]
+loadings <- pca$loadings[,1:3]
 loadings
 # Calculate the squared loadings for each feature and component
 squared_loadings <- loadings^2
@@ -205,20 +205,6 @@ fviz_cos2(pca, choice = "var", axes = 1:2)
 # coloured biplot of component 1 and 2
 fviz_pca_var(pca, col.var = "cos2",
              gradient.cols = c("black","red", "orange", "green","purple","blue"),
-             repel = TRUE)
-
-# another method to find biplot 
-ggbiplot(pca,
-         labels = pca$st ,
-         circle = TRUE,
-         varname.size = 4,
-         varname.color = "red") 
-
-# biplot between component 2 and 3
-fviz_pca_var(pca, axes = c(2, 3), col.var = "black")
-fviz_cos2(pca, choice = "var", axes = 2:3)
-fviz_pca_var(pca, axes = c(2, 3), col.var = "cos2",
-             gradient.cols = c("black", "red", "orange", "green", "purple", "blue"),
              repel = TRUE)
 
 # loadings <- pca$rotation ## probably wont need, will clean up
