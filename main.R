@@ -1,4 +1,4 @@
-`library(dplyr)
+library(dplyr)
 library(corrplot)
 library(ggplot2)
 library(lubridate)
@@ -43,18 +43,12 @@ train_evaluate_hmm <- function(train_data, test_data, states_range, train_n_time
     
     # Step 2: Fit the model on the training data
     fitted_model <- fit(model)
-
+    
     # Step 3: Extract log-likelihood for training data and normalize
     log_likelihood_train <- logLik(fitted_model)
     normalized_train_log_likelihood <- log_likelihood_train / 107  # Normalize by total observations
+    print(normalized_train_log_likelihood)
     
-<<<<<<< HEAD
-=======
-    # Step 3: Extract log-likelihood for training data and normalize
-    log_likelihood_train <- logLik(fitted_model)
-    normalized_train_log_likelihood <- log_likelihood_train / 107  # Normalize by total observations
-    
->>>>>>> anomaly-detection
     # Step 4: Extract BIC for the training model
     bic <- BIC(fitted_model)
     print(bic)
@@ -67,11 +61,7 @@ train_evaluate_hmm <- function(train_data, test_data, states_range, train_n_time
       family = list(gaussian(), gaussian()),
       ntimes = test_n_times,
       emcontrol = list(maxit = 500)
-<<<<<<< HEAD
-      )
-=======
     )
->>>>>>> anomaly-detection
     
     # Step 6: Set the parameters of the new model to be the same as the trained model
     model2 <- setpars(new_mod, getpars(fitted_model))  # Set trained parameters into the test model
@@ -83,18 +73,15 @@ train_evaluate_hmm <- function(train_data, test_data, states_range, train_n_time
     
     # Step 8: Normalize the test log-likelihood
     normalized_test_log_likelihood <- log_likelihood_test / 48  # Normalize by total observations
+    print(normalized_test_log_likelihood)
     
     # Step 9: Store the results for this model configuration
     results[[as.character(num_states)]] <- list(
       num_states = num_states,
       train_log_likelihood = as.numeric(log_likelihood_train),
       test_log_likelihood = as.numeric(log_likelihood_test),
-<<<<<<< HEAD
-      bic = bic
-=======
       bic = bic,
       model = fitted_model
->>>>>>> anomaly-detection
     )
   }
   
@@ -177,23 +164,23 @@ test_scaled_data[test_num_cols] <- scale(test_data[test_num_cols])
 # Drop the time, date and timedate variables, not needed for PCA
 # will be added back for training the HMM
 pca_df <- train_scaled_data[, -c(1, 2, ncol(train_scaled_data))]
+
 # Perform PCA
 pca <- princomp(pca_df, scale = FALSE)
+
 # View contributions to variance
 summary_pca <- summary(pca)
-print(summary_pca)
 
-######### Observation purposes ########## 
+
+######### THIS MAY BE REMOVED ########## 
 # Variance explained by each principal component (standard deviations squared)
 variance_explained <- pca$sdev^2
-
-print(variance_explained)
 # Proportion of variance explained by each component
 proportion_variance <- variance_explained / sum(variance_explained)
 # Extract the proportion of variance explained by each of the first 3 components
-var_exp <- proportion_variance[1:3]  # Proportion of variance explained
+var_exp <- proportion_variance[1:2]  # Proportion of variance explained
 # Extract the loadings for the first 3 components
-loadings <- pca$loadings[,1:3]
+loadings <- pca$loadings[,1:2]
 loadings
 # Calculate the squared loadings for each feature and component
 squared_loadings <- loadings^2
@@ -223,6 +210,20 @@ fviz_pca_var(pca, col.var = "cos2",
              gradient.cols = c("black","red", "orange", "green","purple","blue"),
              repel = TRUE)
 
+# another method to find biplot 
+ggbiplot(pca,
+         labels = pca$st ,
+         circle = TRUE,
+         varname.size = 4,
+         varname.color = "red") 
+
+# biplot between component 2 and 3
+fviz_pca_var(pca, axes = c(2, 3), col.var = "black")
+fviz_cos2(pca, choice = "var", axes = 2:3)
+fviz_pca_var(pca, axes = c(2, 3), col.var = "cos2",
+             gradient.cols = c("black", "red", "orange", "green", "purple", "blue"),
+             repel = TRUE)
+
 # loadings <- pca$rotation ## probably wont need, will clean up
 
 
@@ -246,11 +247,7 @@ p3_data$Week <- isoweek(p3_data$Date) # ISO week number
 
 # Filter between 2 AM and 6 AM
 mon_train_data <- filter(p3_data,
-<<<<<<< HEAD
-                           Weekday == "Mon" & 
-=======
                          Weekday == "Mon" & 
->>>>>>> anomaly-detection
                            format(Datetime, "%H:%M:%S") >= "02:00:00" & 
                            format(Datetime, "%H:%M:%S") <= "5:59:00")
 
@@ -262,15 +259,9 @@ test_scaled_data$Week <- isoweek(test_scaled_data$Date) # ISO week number
 
 # Filter between 2 AM and 6 AM
 mon_test_data <- filter(test_scaled_data,
-<<<<<<< HEAD
-                         Weekday == "Mon" & 
-                           format(Datetime, "%H:%M:%S") >= "02:00:00" & 
-                           format(Datetime, "%H:%M:%S") <= "5:59:00")
-=======
                         Weekday == "Mon" & 
                           format(Datetime, "%H:%M:%S") >= "02:00:00" & 
                           format(Datetime, "%H:%M:%S") <= "5:59:00")
->>>>>>> anomaly-detection
 
 
 
@@ -300,12 +291,9 @@ train_hmm_data <- train_hmm_data[complete.cases(train_hmm_data), ]
 test_hmm_data <- test_hmm_data[complete.cases(test_hmm_data), ]
 
 # Define the range of states to evaluate
-range <- 4:10
+range <- 4:20
 
-<<<<<<< HEAD
-=======
 #states_range <- seq(4, 20, by = 2)
->>>>>>> anomaly-detection
 states_range <- range[seq(1, length(range), by = 2)]
 
 # Train and evaluate HMM models
@@ -330,21 +318,35 @@ ggplot(hmm_results_df, aes(x = num_states)) +
   scale_color_manual("", values = c("Train Log-Likelihood" = "blue", "Test Log-Likelihood" = "green", "BIC" = "red")) +
   theme_minimal()
 
-# Select the best model based on BIC and log-likelihood
-best_model <- hmm_results[[which.min(sapply(hmm_results, function(x) x$bic))]]
-best_fitted_model <- best_model$model
+
+# Initialize best_model_with_10_states as NULL
+best_model_with_10_states <- NULL
+
+# Loop over the results to find the best model with nstates = 10
+for (num_states_str in names(hmm_results)) {
+  model_result <- hmm_results[[num_states_str]]
+  
+  if (model_result$num_states == 10) {
+    if (is.null(best_model_with_10_states) || model_result$bic < best_model_with_10_states$bic) {
+      best_model_with_10_states <- model_result
+    }
+  }
+}
+
+# Now best_model_with_10_states will be the best model with 10 states and the lowest BIC
+best_fitted_model <- best_model_with_10_states$model
+
 
 # Print best model information
-print(paste("Best Model: ", best_model$num_states, "states"))
-print(paste("Train Log-Likelihood: ", best_model$train_log_likelihood))
-print(paste("Test Log-Likelihood: ", best_model$test_log_likelihood))
-print(paste("BIC: ", best_model$bic))
+print(paste("Best Model: ", best_model_with_10_states$num_states, "states"))
+print(paste("Train Log-Likelihood: ", best_model_with_10_states$train_log_likelihood))
+print(paste("Test Log-Likelihood: ", best_model_with_10_states$test_log_likelihood))
+print(paste("BIC: ", best_model_with_10_states$bic))
 
 
 ### PT 4 ###
 # Anomaly Detection using Maximum Deviation
 
-# Partition test data into 10 roughly equal-sized subsets
 mon_test_data <- mon_test_data[order(mon_test_data$Date), ]
 week_indices <- cut(seq(1, nrow(mon_test_data)), breaks = 10, labels = FALSE)
 
@@ -397,8 +399,12 @@ log_likelihood_df <- data.frame(
 
 ggplot(log_likelihood_df, aes(x = Week, y = LogLikelihood)) +
   geom_line(color = "blue") +
-  geom_hline(yintercept = lower_threshold, color = "red", linetype = "dashed", label = "Lower Threshold") +
-  geom_hline(yintercept = upper_threshold, color = "red", linetype = "dashed", label = "Upper Threshold") +
+  geom_hline(yintercept = lower_threshold, color = "red", linetype = "dashed") +
+  geom_hline(yintercept = upper_threshold, color = "red", linetype = "dashed") +
+  geom_text(aes(x = min(log_likelihood_df$Week), y = lower_threshold, label = "Lower Threshold"), 
+            color = "red", vjust = -1, hjust = 0) +
+  geom_text(aes(x = min(log_likelihood_df$Week), y = upper_threshold, label = "Upper Threshold"), 
+            color = "red", vjust = 1, hjust = 0) +
   labs(
     title = "Log-Likelihoods of Test Data Subsets with Maximum Deviation Threshold",
     x = "Week Subset",
