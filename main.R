@@ -1,4 +1,4 @@
-library(dplyr)
+`library(dplyr)
 library(corrplot)
 library(ggplot2)
 library(lubridate)
@@ -291,8 +291,8 @@ test_hmm_data <- test_hmm_data[complete.cases(test_hmm_data), ]
 # Define the range of states to evaluate
 range <- 4:10
 
-states_range <- seq(4, 20, by = 2)
-#states_range <- range[seq(1, length(range), by = 2)]
+#states_range <- seq(4, 20, by = 2)
+states_range <- range[seq(1, length(range), by = 2)]
 
 # Train and evaluate HMM models
 hmm_results <- train_evaluate_hmm(mon_train_data, mon_test_data, states_range, count_vector, test_count_vector)
@@ -331,14 +331,14 @@ print(paste("BIC: ", best_model$bic))
 # Anomaly Detection using Maximum Deviation
 
 # Partition test data into 10 roughly equal-sized subsets
-test_data <- test_data[order(test_data$Date), ]
-week_indices <- cut(seq(1, nrow(test_data)), breaks = 10, labels = FALSE)
+mon_test_data <- mon_test_data[order(mon_test_data$Date), ]
+week_indices <- cut(seq(1, nrow(mon_test_data)), breaks = 10, labels = FALSE)
 
 # Calculate log-likelihoods for test subsets
 log_likelihoods <- list()
 
 for (i in 1:10) {
-  subset_data <- test_data[week_indices == i, response_vars]
+  subset_data <- mon_test_data[week_indices == i, response_vars]
   subset_data <- subset_data[complete.cases(subset_data), ]
   
   if (nrow(subset_data) > 0) {
@@ -389,3 +389,4 @@ ggplot(log_likelihood_df, aes(x = Week, y = LogLikelihood)) +
 
 
 
+`
